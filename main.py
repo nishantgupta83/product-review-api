@@ -6,11 +6,7 @@ from bs4 import BeautifulSoup
 import spacy
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk_download  # ensure this runs
-import nltk
-
-
 nltk.download("vader_lexicon")
-
 
 import spacy
 try:
