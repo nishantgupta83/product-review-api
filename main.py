@@ -15,6 +15,7 @@ except LookupError:
     nltk.download("vader_lexicon")
 
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+# Initialize VADER sentiment analyzer
 sid = SentimentIntensityAnalyzer()
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -25,9 +26,6 @@ try:
 except OSError:
     subprocess.run(["python3", "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
-
-# Initialize VADER sentiment analyzer
-sid = SentimentIntensityAnalyzer()
 
 # Initialize FastAPI
 app = FastAPI()
@@ -176,15 +174,12 @@ Text:
         return json.loads(reply)
     except Exception as e:
         print("OpenAI API error:", e)
-        return {
-            "Product Functionality": 50,
-            "User Experience": 50,
-            "Customer Support": 50,
-            "Pricing and Value": 50,
-        }
+        return categorize_sentiment(text)
+
 
 def extract_enhancements(text):
-    candidates = re.findall(r"(needs improvement|could be better|fails to|doesn’t work|wish it had.*?)\\.", text, re.IGNORECASE)
+    candidates = re.findall(r"(needs improvement|could be better|fails to|doesn’t work|wish it had.*?)\.", text, re.IGNORECASE)
+    
     common = list(set([c.strip().capitalize() for c in candidates]))
     return common[:5] if common else [
         "Improve battery performance",
