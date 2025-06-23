@@ -3,8 +3,12 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio, httpx, re, subprocess
 from bs4 import BeautifulSoup
+import openai
+import json
+
 import spacy
 import nltk
+
 try:
     nltk.data.find("sentiment/vader_lexicon")
 except LookupError:
@@ -13,7 +17,7 @@ except LookupError:
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 sid = SentimentIntensityAnalyzer()
 
-
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Load SpaCy model with fallback
 try:
@@ -116,6 +120,8 @@ async def fetch_reviews_from_serpapi(query: str):
         print("SerpAPI error:", e)
         return []
 
+
+
 def categorize_sentiment(text):
     categories = {
         "Product Functionality": ["feature", "bug", "performance", "hardware", "battery"],
@@ -136,25 +142,45 @@ def categorize_sentiment(text):
             results[cat] = 50  # Neutral default
 
     return results
+    
+def categorize_sentiment_llm(text: str):
+    prompt = f"""
+You are an AI assistant analyzing customer product reviews. Based on the content below, return a JSON object with percentage scores (0-100) for the following categories:
 
-def categorize_sentiment(text):
-    categories = {
-        "Product Functionality": ["feature", "bug", "performance", "hardware", "battery"],
-        "User Experience": ["design", "interface", "navigation", "ease"],
-        "Customer Support": ["support", "help", "service", "agent"],
-        "Pricing and Value": ["price", "value", "cost", "worth"]
-    }
-    doc = nlp(text)
-    results = {}
-    for cat, keywords in categories.items():
-        cat_sentences = [sent.text for sent in doc.sents if any(kw in sent.text.lower() for kw in keywords)]
-        if cat_sentences:
-            scores = [sid.polarity_scores(sent)["compound"] for sent in cat_sentences]
-            avg_score = sum(scores) / len(scores)
-            results[cat] = int((avg_score + 1) * 50)
-        else:
-            results[cat] = 50  # Neutral default
-    return results
+- Product Functionality
+- User Experience
+- Customer Support
+- Pricing and Value
+
+Respond ONLY in this format:
+{{
+  "Product Functionality": 75,
+  "User Experience": 85,
+  "Customer Support": 60,
+  "Pricing and Value": 70
+}}
+
+Text:
+{text[:3000]}
+"""
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_tokens=300,
+        )
+        reply = response.choices[0].message.content
+        return json.loads(reply)
+    except Exception as e:
+        print("OpenAI API error:", e)
+        return {
+            "Product Functionality": 50,
+            "User Experience": 50,
+            "Customer Support": 50,
+            "Pricing and Value": 50,
+        }
 
 def extract_enhancements(text):
     candidates = re.findall(r"(needs improvement|could be better|fails to|doesn’t work|wish it had.*?)\\.", text, re.IGNORECASE)
