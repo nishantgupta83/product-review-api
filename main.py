@@ -54,7 +54,8 @@ async def extract_review_data(payload: ReviewRequest):
     reviews = [r["snippet"] for r in review_sources if r.get("snippet")]
     text_blob = " ".join(reviews)
 
-    categorized = categorize_sentiment(text_blob)
+   # categorized = categorize_sentiment(text_blob)
+    categorized = categorize_sentiment_llm(text_blob)
     enhancements = extract_enhancements(text_blob)
 
     return {
