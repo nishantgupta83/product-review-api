@@ -45,21 +45,18 @@ class ReviewRequest(BaseModel):
 async def extract_review_data(payload: ReviewRequest):
     product_url = payload.url
     product_name = extract_title_from_url(product_url)
-    review_sources = await search_review_sites(product_name)
+    review_sources = await fetch_reviews_from_serpapi(product_name)
 
-    reviews = await fetch_all_reviews(review_sources)
-    consolidated = consolidate_reviews(reviews)
+    reviews = [r["snippet"] for r in review_sources if r.get("snippet")]
+    text_blob = " ".join(reviews)
 
-    categorized = categorize_sentiment(consolidated)
-    enhancements = extract_enhancements(consolidated)
-
-    top_sources = review_sources[:5]
+    categorized = categorize_sentiment(text_blob)
+    enhancements = extract_enhancements(text_blob)
 
     return {
         "enhancements": enhancements,
         "categories": categorized,
-        "sources": top_sources,
-        "average_sentiment": round(sum(categorized.values()) / len(categorized), 2)
+        "sources": review_sources[:5],
     }
 
 # GET handler (optional)
@@ -97,6 +94,27 @@ async def fetch_all_reviews(sites):
 
 def consolidate_reviews(raw_reviews):
     return " ".join(filter(None, raw_reviews))
+    
+async def fetch_reviews_from_serpapi(query: str):
+    SERPAPI_KEY = "5a6c447319fd3b6b30dc589acf74bc6a688745d78e5ec4a8cfdd72185d12a7eb"
+    url = "https://serpapi.com/search.json"
+    params = {
+        "q": f"{query} reviews",
+        "api_key": SERPAPI_KEY,
+        "engine": "google",
+        "num": 10
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, params=params)
+            results = resp.json().get("organic_results", [])
+            return [
+                {"name": r.get("title", ""), "url": r.get("link", ""), "snippet": r.get("snippet", "")}
+                for r in results
+            ]
+    except Exception as e:
+        print("SerpAPI error:", e)
+        return []
 
 def categorize_sentiment(text):
     categories = {
@@ -119,9 +137,27 @@ def categorize_sentiment(text):
 
     return results
 
+def categorize_sentiment(text):
+    categories = {
+        "Product Functionality": ["feature", "bug", "performance", "hardware", "battery"],
+        "User Experience": ["design", "interface", "navigation", "ease"],
+        "Customer Support": ["support", "help", "service", "agent"],
+        "Pricing and Value": ["price", "value", "cost", "worth"]
+    }
+    doc = nlp(text)
+    results = {}
+    for cat, keywords in categories.items():
+        cat_sentences = [sent.text for sent in doc.sents if any(kw in sent.text.lower() for kw in keywords)]
+        if cat_sentences:
+            scores = [sid.polarity_scores(sent)["compound"] for sent in cat_sentences]
+            avg_score = sum(scores) / len(scores)
+            results[cat] = int((avg_score + 1) * 50)
+        else:
+            results[cat] = 50  # Neutral default
+    return results
+
 def extract_enhancements(text):
-    pattern = r"(needs improvement|could be better|fails to|doesn't work|wish it had.*?)\."
-    candidates = re.findall(pattern, text, re.IGNORECASE)
+    candidates = re.findall(r"(needs improvement|could be better|fails to|doesn’t work|wish it had.*?)\\.", text, re.IGNORECASE)
     common = list(set([c.strip().capitalize() for c in candidates]))
     return common[:5] if common else [
         "Improve battery performance",
