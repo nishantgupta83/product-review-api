@@ -5,7 +5,6 @@ import asyncio, httpx, re
 from bs4 import BeautifulSoup
 import spacy
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
-import nltk_download  # ensure this runs
 
 import spacy
 try:
