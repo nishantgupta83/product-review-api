@@ -5,6 +5,7 @@ import asyncio, httpx, re, subprocess
 from bs4 import BeautifulSoup
 import openai
 import json
+import os
 
 import spacy
 import nltk
