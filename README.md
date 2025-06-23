@@ -1,13 +1,12 @@
 
 # Product Review API
 
-This FastAPI app extracts reviews and insights from various websites based on a product URL.
+This FastAPI service scrapes product reviews from the web, analyzes sentiment, and returns enhancement insights.
 
-## Features
-- Scrapes review-related content
-- Uses spaCy + NLTK for NLP
-- Categorizes product feedback into actionable insights
+## Setup
 
-## Run locally
 ```bash
+pip install -r requirements.txt
+python nltk_download.py
+python -m spacy download en_core_web_sm
 uvicorn main:app --reload
