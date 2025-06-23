@@ -1,24 +1,25 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio, httpx, re
+import asyncio, httpx, re, subprocess
 from bs4 import BeautifulSoup
 import spacy
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
-import spacy
+# Load SpaCy model with fallback
 try:
     nlp = spacy.load("en_core_web_sm")
-except:
-    import os
-    os.system("python3 -m spacy download en_core_web_sm")
+except OSError:
+    subprocess.run(["python3", "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
 
+# Initialize VADER sentiment analyzer
 sid = SentimentIntensityAnalyzer()
 
+# Initialize FastAPI
 app = FastAPI()
 
-# Allow frontend
+# Allow all CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,9 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request model
 class ReviewRequest(BaseModel):
     url: str
 
+# Main endpoint
 @app.post("/api/review")
 async def extract_review_data(payload: ReviewRequest):
     product_url = payload.url
@@ -47,19 +50,22 @@ async def extract_review_data(payload: ReviewRequest):
         "enhancements": enhancements,
         "categories": categorized,
         "sources": top_sources,
+        "average_sentiment": round(sum(categorized.values()) / len(categorized), 2)
     }
 
+# GET handler (optional)
 @app.get("/api/review")
 def read_only_warning():
     return {"message": "Please use POST method to submit product URL"}
 
+# Helpers
 def extract_title_from_url(url: str) -> str:
     slug = re.sub(r"https?://|www\.|\.com.*", "", url)
     parts = slug.split("/")
     return " ".join([p.replace("-", " ") for p in parts if p])
 
 async def search_review_sites(product_name: str):
-    # Simulated search results
+    # Simulated search result URLs
     return [
         {"name": "Amazon", "url": f"https://www.amazon.com/s?k={product_name}"},
         {"name": "BestBuy", "url": f"https://www.bestbuy.com/site/searchpage.jsp?st={product_name}"},
@@ -74,9 +80,9 @@ async def fetch_all_reviews(sites):
             try:
                 response = await client.get(site["url"])
                 soup = BeautifulSoup(response.text, "html.parser")
-                text = soup.get_text(separator=" ", strip=True)
-                return text[:5000]
-            except Exception:
+                return soup.get_text(separator=" ", strip=True)[:5000]
+            except Exception as e:
+                print(f"Error fetching {site['url']}: {e}")
                 return ""
     return await asyncio.gather(*(fetch(site) for site in sites))
 
@@ -105,7 +111,8 @@ def categorize_sentiment(text):
     return results
 
 def extract_enhancements(text):
-    candidates = re.findall(r"(needs improvement|could be better|fails to|doesn’t work|wish it had.*?)\.", text, re.IGNORECASE)
+    pattern = r"(needs improvement|could be better|fails to|doesn't work|wish it had.*?)\."
+    candidates = re.findall(pattern, text, re.IGNORECASE)
     common = list(set([c.strip().capitalize() for c in candidates]))
     return common[:5] if common else [
         "Improve battery performance",
