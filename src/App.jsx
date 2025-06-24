@@ -4,7 +4,7 @@
 // - Real backend API support with scraping and NLP
 
 import React, { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+//import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Gauge } from "@/components/ui/gauge";
